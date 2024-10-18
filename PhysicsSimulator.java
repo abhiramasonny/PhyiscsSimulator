@@ -10,15 +10,17 @@ public class PhysicsSimulator extends JFrame {
     private static final int HEIGHT = 600;
     private static final double GRAVITY = 9.81;
     private static final double TIME_STEP = 0.16;
+    private static final double GROUND_FRICTION = 0.1; // Ground friction coefficient
+    private static final int GROUND_HEIGHT = 30; // Ground height
 
     private List<PhysicsObject> objects;
     private Timer timer;
     private JPanel simulationPanel;
     private Random random;
 
-    private JTextField radiusField, massField, velocityXField, velocityYField, frictionField;
+    private JTextField radiusField, massField, velocityXField, velocityYField, sidesField;
     private JSlider elasticitySlider;
-    private JButton addObjectButton;
+    private JButton addCircleButton, addPolygonButton;
 
     public PhysicsSimulator() {
         objects = new ArrayList<>();
@@ -35,16 +37,38 @@ public class PhysicsSimulator extends JFrame {
         timer = new Timer(16, e -> updateSimulation());
         timer.start();
     }
-
+    private void addCircleAtMouse(int x, int y) {
+        try {
+            double radius = Double.parseDouble(radiusField.getText());
+            double mass = Double.parseDouble(massField.getText());
+            double vx = Double.parseDouble(velocityXField.getText());
+            double vy = Double.parseDouble(velocityYField.getText());
+            double elasticity = elasticitySlider.getValue() / 100.0;
+    
+            // Ensure the circle is created within the boundaries
+            double adjustedX = Math.max(radius, Math.min(x, simulationPanel.getWidth() - radius));
+            double adjustedY = Math.max(radius, Math.min(y, simulationPanel.getHeight() - radius - GROUND_HEIGHT));
+            Color color = new Color(random.nextFloat(), random.nextFloat(), random.nextFloat());
+    
+            objects.add(new Circle(adjustedX, adjustedY, vx, vy, radius, mass, elasticity, color));
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Invalid input");
+        }
+    }
+    
     private void createSimulationPanel() {
         simulationPanel = new JPanel() {
             @Override
             protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
+
+                // Draw the ground
+                g.setColor(Color.BLACK);
+                g.fillRect(0, getHeight() - GROUND_HEIGHT, getWidth(), GROUND_HEIGHT);
+
+                // Draw objects
                 for (PhysicsObject obj : objects) {
-                    g.setColor(obj.color);
-                    int diameter = (int) (obj.radius * 2);
-                    g.fillOval((int) (obj.x - obj.radius), (int) (obj.y - obj.radius), diameter, diameter);
+                    obj.draw(g);
                 }
             }
         };
@@ -55,7 +79,7 @@ public class PhysicsSimulator extends JFrame {
         simulationPanel.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
-                addObjectAtMouse(e.getX(), e.getY());
+                addCircleAtMouse(e.getX(), e.getY());
             }
         });
     }
@@ -69,23 +93,27 @@ public class PhysicsSimulator extends JFrame {
         massField = new JTextField("1", 5);
         velocityXField = new JTextField("0", 5);
         velocityYField = new JTextField("0", 5);
-        frictionField = new JTextField("0.1", 5); 
+        sidesField = new JTextField("5", 5); // For polygon shapes
         elasticitySlider = new JSlider(0, 100, 90);
         elasticitySlider.setMajorTickSpacing(25);
         elasticitySlider.setPaintTicks(true);
         elasticitySlider.setPaintLabels(true);
 
-        addObjectButton = new JButton("Add Object");
-        addObjectButton.addActionListener(e -> addObject());
+        addCircleButton = new JButton("Add Circle");
+        addCircleButton.addActionListener(e -> addCircle());
+
+        addPolygonButton = new JButton("Add Polygon");
+        addPolygonButton.addActionListener(e -> addPolygon());
 
         controlPanel.add(createLabeledComponent("Radius", radiusField));
         controlPanel.add(createLabeledComponent("Mass:", massField));
         controlPanel.add(createLabeledComponent("Velocity X:", velocityXField));
         controlPanel.add(createLabeledComponent("Velocity Y:", velocityYField));
-        controlPanel.add(createLabeledComponent("Friction Coefficient:", frictionField));
         controlPanel.add(createLabeledComponent("Elasticity:", elasticitySlider));
+        controlPanel.add(createLabeledComponent("Sides (for Polygon):", sidesField));
         controlPanel.add(Box.createVerticalStrut(20));
-        controlPanel.add(addObjectButton);
+        controlPanel.add(addCircleButton);
+        controlPanel.add(addPolygonButton);
 
         add(controlPanel, BorderLayout.EAST);
     }
@@ -98,37 +126,38 @@ public class PhysicsSimulator extends JFrame {
         return panel;
     }
 
-    private void addObject() {
+    private void addCircle() {
         try {
             double radius = Double.parseDouble(radiusField.getText());
             double mass = Double.parseDouble(massField.getText());
             double vx = Double.parseDouble(velocityXField.getText());
             double vy = Double.parseDouble(velocityYField.getText());
             double elasticity = elasticitySlider.getValue() / 100.0;
-            double frictionCoefficient = Double.parseDouble(frictionField.getText());
 
             double x = random.nextDouble() * (simulationPanel.getWidth() - 2 * radius) + radius;
-            double y = random.nextDouble() * (simulationPanel.getHeight() - 2 * radius) + radius;
+            double y = random.nextDouble() * (simulationPanel.getHeight() - 2 * radius - GROUND_HEIGHT) + radius;
             Color color = new Color(random.nextFloat(), random.nextFloat(), random.nextFloat());
 
-            objects.add(new PhysicsObject(x, y, vx, vy, radius, mass, elasticity, frictionCoefficient, color));
+            objects.add(new Circle(x, y, vx, vy, radius, mass, elasticity, color));
         } catch (NumberFormatException e) {
             JOptionPane.showMessageDialog(this, "Invalid input");
         }
     }
 
-    private void addObjectAtMouse(double x, double y) {
+    private void addPolygon() {
         try {
             double radius = Double.parseDouble(radiusField.getText());
             double mass = Double.parseDouble(massField.getText());
             double vx = Double.parseDouble(velocityXField.getText());
             double vy = Double.parseDouble(velocityYField.getText());
+            int sides = Integer.parseInt(sidesField.getText());
             double elasticity = elasticitySlider.getValue() / 100.0;
-            double frictionCoefficient = Double.parseDouble(frictionField.getText());
 
+            double x = random.nextDouble() * (simulationPanel.getWidth() - 2 * radius) + radius;
+            double y = random.nextDouble() * (simulationPanel.getHeight() - 2 * radius - GROUND_HEIGHT) + radius;
             Color color = new Color(random.nextFloat(), random.nextFloat(), random.nextFloat());
 
-            objects.add(new PhysicsObject(x, y, vx, vy, radius, mass, elasticity, frictionCoefficient, color));
+            objects.add(new PolygonObject(x, y, vx, vy, radius, mass, elasticity, sides, color));
         } catch (NumberFormatException e) {
             JOptionPane.showMessageDialog(this, "Invalid input");
         }
@@ -141,15 +170,15 @@ public class PhysicsSimulator extends JFrame {
             obj.x += obj.vx * TIME_STEP;
             obj.y += obj.vy * TIME_STEP;
 
-            applyFriction(obj);
+            applyGroundFriction(obj);
 
             if (obj.x - obj.radius < 0 || obj.x + obj.radius > simulationPanel.getWidth()) {
                 obj.vx *= -obj.elasticity;
                 obj.x = Math.max(obj.radius, Math.min(simulationPanel.getWidth() - obj.radius, obj.x));
             }
-            if (obj.y - obj.radius < 0 || obj.y + obj.radius > simulationPanel.getHeight()) {
+            if (obj.y - obj.radius < 0 || obj.y + obj.radius > simulationPanel.getHeight() - GROUND_HEIGHT) {
                 obj.vy *= -obj.elasticity;
-                obj.y = Math.max(obj.radius, Math.min(simulationPanel.getHeight() - obj.radius, obj.y));
+                obj.y = Math.max(obj.radius, Math.min(simulationPanel.getHeight() - obj.radius - GROUND_HEIGHT, obj.y));
             }
         }
 
@@ -162,16 +191,16 @@ public class PhysicsSimulator extends JFrame {
         simulationPanel.repaint();
     }
 
-    private void applyFriction(PhysicsObject obj) {
-        if (obj.y + obj.radius >= simulationPanel.getHeight()) {
+    private void applyGroundFriction(PhysicsObject obj) {
+        if (obj.y + obj.radius >= simulationPanel.getHeight() - GROUND_HEIGHT) {
             double normalForce = obj.mass * GRAVITY;
-            double frictionForce = obj.frictionCoefficient * normalForce;
+            double frictionForce = GROUND_FRICTION * normalForce;
             double frictionAcceleration = frictionForce / obj.mass;
 
             if (obj.vx > 0) {
-                obj.vx = Math.max(0, obj.vx - frictionAcceleration * TIME_STEP); // Reduce vx, but not below 0
+                obj.vx = Math.max(0, obj.vx - frictionAcceleration * TIME_STEP);
             } else if (obj.vx < 0) {
-                obj.vx = Math.min(0, obj.vx + frictionAcceleration * TIME_STEP); // Increase vx towards 0
+                obj.vx = Math.min(0, obj.vx + frictionAcceleration * TIME_STEP);
             }
         }
     }
@@ -212,11 +241,12 @@ public class PhysicsSimulator extends JFrame {
         }
     }
 
-    private static class PhysicsObject {
-        double x, y, vx, vy, radius, mass, elasticity, frictionCoefficient;
+    // Base PhysicsObject class
+    private static abstract class PhysicsObject {
+        double x, y, vx, vy, radius, mass, elasticity;
         Color color;
 
-        public PhysicsObject(double x, double y, double vx, double vy, double radius, double mass, double elasticity, double frictionCoefficient, Color color) {
+        public PhysicsObject(double x, double y, double vx, double vy, double radius, double mass, double elasticity, Color color) {
             this.x = x;
             this.y = y;
             this.vx = vx;
@@ -224,8 +254,46 @@ public class PhysicsSimulator extends JFrame {
             this.radius = radius;
             this.mass = mass;
             this.elasticity = elasticity;
-            this.frictionCoefficient = frictionCoefficient;
             this.color = color;
+        }
+
+        public abstract void draw(Graphics g);
+    }
+
+    // Circle class extending PhysicsObject
+    private static class Circle extends PhysicsObject {
+
+        public Circle(double x, double y, double vx, double vy, double radius, double mass, double elasticity, Color color) {
+            super(x, y, vx, vy, radius, mass, elasticity, color);
+        }
+
+        @Override
+        public void draw(Graphics g) {
+            g.setColor(color);
+            int diameter = (int) (radius * 2);
+            g.fillOval((int) (x - radius), (int) (y - radius), diameter, diameter);
+        }
+    }
+
+    // Polygon class extending PhysicsObject
+    private static class PolygonObject extends PhysicsObject {
+        int sides;
+
+        public PolygonObject(double x, double y, double vx, double vy, double radius, double mass, double elasticity, int sides, Color color) {
+            super(x, y, vx, vy, radius, mass, elasticity, color);
+            this.sides = sides;
+        }
+
+        @Override
+        public void draw(Graphics g) {
+            g.setColor(color);
+            int[] xPoints = new int[sides];
+            int[] yPoints = new int[sides];
+            for (int i = 0; i < sides; i++) {
+                xPoints[i] = (int) (x + radius * Math.cos(2 * Math.PI * i / sides));
+                yPoints[i] = (int) (y + radius * Math.sin(2 * Math.PI * i / sides));
+            }
+            g.fillPolygon(xPoints, yPoints, sides);
         }
     }
 
@@ -235,5 +303,4 @@ public class PhysicsSimulator extends JFrame {
             simulator.setVisible(true);
         });
     }
-    
 }
